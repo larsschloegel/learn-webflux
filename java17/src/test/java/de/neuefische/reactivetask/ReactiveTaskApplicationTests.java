@@ -30,7 +30,7 @@ class ReactiveTaskApplicationTests {
 	}
 	
 	@Test
-	@Disabled
+	//@Disabled
 	void creationTest() {
 		
 		var createdOrder1 = webTestClient
@@ -76,7 +76,6 @@ class ReactiveTaskApplicationTests {
 	}
 	
 	@Test
-	@Disabled
 	void paymentTest() {
 		
 		var createdOrder = webTestClient

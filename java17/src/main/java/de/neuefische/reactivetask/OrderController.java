@@ -22,38 +22,55 @@ import reactor.core.publisher.Mono;
 @CrossOrigin("*")
 @RequiredArgsConstructor
 class OrderController {
-	
-	private final OrderRepository orderRepository;
-	private final OrderMapper orderMapper;
-	private final WebClient webClient;
-	
-	@PostMapping(consumes = {MediaType.APPLICATION_JSON_VALUE}, produces = { MediaType.APPLICATION_JSON_VALUE })
-	@ResponseStatus(code = HttpStatus.CREATED)
-	public Mono<OrderDTO> createOrder(@RequestBody OrderDTO order) {
-		// TODO: implement me
-		// Verwendet das orderRepository um die übergebene Order in die Datenbank zu schreiben.
-		// Beachtet, dass ihr hier ein OrderDTO und auch wieder zurückgeben müsst, das orderRepository
-		// aber eine Order erwartet und zurückgibt.
-		return Mono.empty();
-	}
-	
-	@GetMapping(produces = { MediaType.APPLICATION_JSON_VALUE })
-	public Flux<OrderDTO> getOrders() {
-		// TODO: implement me
-		// Verwendet das OrderRepository um alle Orders aus der Datenbank auszulesen und als OrderDTO
-		// Objekte zurückzugeben.
-	    return Flux.empty();
-	}
-	
-	@PostMapping(path = "/{id}/payment", produces = { MediaType.APPLICATION_JSON_VALUE })
-	public Mono<OrderDTO> payment(@PathVariable String id) {
-		// TODO: implement me
-		// Jetzt geht es ans eingemachte. Verwendet den WebClient um den Pfad "/api/payment" per POST mit einem PaymentRequest auf.
-		// Als Ergebnis bekommt ihr ein PaymentResult. Markiert die Order als bezahlt indem ihr die Mehtode
-		// markAsPayed mit dem Preis aus dem PaymentResult aufruft.
-		// Speichert dann die geänderte Order wieder in der Datenbank und gebt das Ergebnis als OrderDTO zurück.
-		// Am WebClient ist die baseUrl schon korrekt konfiguriert.
-		return Mono.empty();
-	}
 
+    private final OrderRepository orderRepository;
+    private final OrderMapper orderMapper;
+    private final WebClient webClient;
+
+    @PostMapping(consumes = {MediaType.APPLICATION_JSON_VALUE}, produces = {MediaType.APPLICATION_JSON_VALUE})
+    @ResponseStatus(code = HttpStatus.CREATED)
+    public Mono<OrderDTO> createOrder(@RequestBody OrderDTO orderDTO) {
+        // TODO: implement me
+        // Verwendet das orderRepository um die übergebene Order in die Datenbank zu schreiben.
+        // Beachtet, dass ihr hier ein OrderDTO und auch wieder zurückgeben müsst, das orderRepository
+        // aber eine Order erwartet und zurückgibt.
+        return orderRepository.save(orderMapper.toOrder(orderDTO)).map(orderMapper::toOrderDTO);
+    }
+
+    @GetMapping(produces = {MediaType.APPLICATION_JSON_VALUE})
+    public Flux<OrderDTO> getOrders() {
+        // TODO: implement me
+        // Verwendet das OrderRepository um alle Orders aus der Datenbank auszulesen und als OrderDTO
+        // Objekte zurückzugeben.
+        return orderRepository.findAll().map(orderMapper::toOrderDTO);
+    }
+
+    @PostMapping(path = "/{id}/payment", produces = {MediaType.APPLICATION_JSON_VALUE})
+    public Mono<OrderDTO> payment(@PathVariable String id) {
+        // TODO: implement me
+        // Jetzt geht es ans eingemachte. Verwendet den WebClient um den Pfad "/api/payment" per POST mit einem PaymentRequest auf.
+        // Als Ergebnis bekommt ihr ein PaymentResult. Markiert die Order als bezahlt indem ihr die Mehtode
+        // markAsPayed mit dem Preis aus dem PaymentResult aufruft.
+        // Speichert dann die geänderte Order wieder in der Datenbank und gebt das Ergebnis als OrderDTO zurück.
+        // Am WebClient ist die baseUrl schon korrekt konfiguriert.
+        return orderRepository.findById(id)
+                .map(order -> new PaymentRequest(order.id(), order.item()))
+                .flatMap(this::callPaymentService)
+                .flatMap(this::markOrderAsPayed)
+                .map(orderMapper::toOrderDTO);
+    }
+
+    private Mono<Order> markOrderAsPayed(PaymentResponse paymentResponse){
+        return orderRepository.findById(paymentResponse.orderId())
+                .flatMap(order -> orderRepository.save(order.markAsPayed(paymentResponse.price())));
+    }
+    private Mono<PaymentResponse> callPaymentService(PaymentRequest paymentRequest) {
+        return webClient
+                .post()
+                .uri("/api/payment")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(BodyInserters.fromValue(paymentRequest))
+                .exchangeToMono(clientResponse -> clientResponse.bodyToMono(PaymentResponse.class));
+    }
 }
